@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Мини-игра: Сортировщик зомби</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700;900&display=swap');
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Roboto', sans-serif;
+            user-select: none;
+        }
+
+        body {
+            background-color: #121212;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #fff;
+        }
+
+        #game-container {
+            width: 100%;
+            max-width: 960px;
+            aspect-ratio: 16 / 9;
+            background-color: #2b2b2b;
+            position: relative;
+            overflow: hidden;
+            border: 4px solid #444;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* --- Стили экранов --- */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #222;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            padding: 20px;
+            text-align: center;
+        }
+
+        #screen-game {
+            z-index: 5;
+            background: url('data:image/svg+xml;utf8,<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100" fill="%232a2a2a"/><path d="M50 0 L50 100" stroke="%23333" stroke-width="4" stroke-dasharray="10 10"/></svg>') repeat;
+        }
+
+        h1 { color: #ffbc00; margin-bottom: 10px; font-size: 2.5vw; text-transform: uppercase;}
+        h2 { font-size: 1.8vw; margin-bottom: 15px;}
+        p { font-size: 1.2vw; line-height: 1.5; margin-bottom: 15px; max-width: 80%; }
+
+        /* --- Легенда на стартовом экране --- */
+        .legend-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+            width: 90%;
+        }
+        .legend-item {
+            background: #333;
+            padding: 10px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 1vw;
+            border: 2px solid #555;
+        }
+      .legend-visual {
+            width: 50px; /* Сделал чуть побольше, чтобы было лучше видно */
+            height: 50px;
+            margin-bottom: 10px;
+            position: relative;
+            /* Добавляем магию, чтобы картинки сжались под размер окошка: */
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-color: transparent;
+        }
+
+        /* --- Кнопки --- */
+        .btn {
+            padding: 15px 30px;
+            font-size: 1.5vw;
+            font-weight: bold;
+            color: #fff;
+            background: #ffbc00;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-transform: uppercase;
+            transition: transform 0.1s, filter 0.2s;
+            box-shadow: 0 4px 0 #b38400;
+        }
+        .btn:active { transform: translateY(4px); box-shadow: none; }
+        .btn:hover { filter: brightness(1.1); }
+
+        /* --- Игровой интерфейс --- */
+        #hud {
+            position: absolute;
+            top: 10px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.5vw;
+            font-weight: bold;
+            z-index: 6;
+        }
+        #score-display { color: #ffbc00; }
+        #goal-display { color: #aaa; }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-around;
+            z-index: 6;
+        }
+        .action-btn {
+            width: 40%;
+            padding: 20px;
+            font-size: 2vw;
+            box-shadow: 0 6px 0 rgba(0,0,0,0.5);
+        }
+        #btn-shelter { background: #2e7d32; border: 2px solid #4caf50; }
+        #btn-quarantine { background: #c62828; border: 2px solid #ef5350; }
+        
+        #gate-zone {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 100px;
+            background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+            border-top: 2px dashed #666;
+            z-index: 4;
+        }
+
+        /* --- Всплывающие очки --- */
+        .floating-text {
+            position: absolute;
+            font-weight: bold;
+            font-size: 2vw;
+            animation: floatUp 1s ease-out forwards;
+            z-index: 20;
+            pointer-events: none;
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-50px) scale(1.5); opacity: 0; }
+        }
+
+        /* --- Сущности (Вид сверху) --- */
+     .entity {
+    position: absolute;
+    top: -60px;
+    left: calc(50% - 30px); /* Теперь центрируем умно, без transform */
+    width: 60px;
+    height: 60px;
+    z-index: 5;
+    transition: opacity 0.2s;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-color: transparent; 
+}
+/* Размер картинки сделай чуть больше */
+    height: 60px;
+    z-index: 5;
+    transition: opacity 0.2s;
+    /* Настройки для картинок */
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    background-color: transparent; 
+    /* ДОБАВИТЬ ЭТИ ДВЕ СТРОЧКИ: */
+    touch-action: none; /* Чтобы экран не скроллился при перетаскивании на телефоне */
+    cursor: grab; /* Курсор в виде открытой руки */
+}
+.entity:active { cursor: grabbing; }
+/* Отключаем CSS-плечи, так как теперь у нас цельные картинки */
+.entity::before, .entity::after { display: none !important; }
+
+/* 1. Выживший */
+.type-survivor { 
+    background-image: url('https://i.ibb.co/twNMphyh/1.png'); 
+}
+
+/* 2. Классический зомби */
+.type-classic { 
+    background-image: url('https://i.ibb.co/F4R4MQRS/2.png'); 
+}
+
+/* 3. Химический зомби */
+.type-chemical { 
+    background-image: url('https://i.ibb.co/cXk7M48V/5.png');
+    /* Оставляем легкое зеленое свечение для эффекта */
+    filter: drop-shadow(0 0 10px #aee000);
+}
+
+/* 4. Радиационный зомби */
+.type-radiation { 
+    background-image: url('https://i.ibb.co/Zpd4DxXZ/4.png');
+    /* Оставляем эффект глюка и свечения */
+    filter: drop-shadow(0 0 15px #00e676);
+    animation: glitch 0.5s infinite; 
+}
+
+/* 5. Огненный зомби */
+.type-fire { 
+    background-image: url('https://i.ibb.co/S4GCnS1g/3.png');
+    /* Оставляем эффект мерцания огня */
+    animation: burn 0.2s infinite alternate;
+}
+
+/* Анимации свечения (оставляем как были, но адаптируем под картинки) */
+@keyframes glitch {
+    0% { transform: translate(1px, 1px); filter: drop-shadow(0 0 15px #00e676); }
+    50% { transform: translate(-2px, -1px); opacity: 0.8; }
+    100% { transform: translate(2px, 2px); filter: hue-rotate(45deg) drop-shadow(0 0 15px #00e676); }
+}
+@keyframes burn { 
+    0% { filter: drop-shadow(0 0 10px #ff3d00); } 
+    100% { filter: drop-shadow(0 0 20px #ffea00); } 
+}
+
+/* Анимация движения вниз */
+.walking {
+    animation-name: walkDown;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+}
+@keyframes walkDown {
+    0% { top: -60px; }
+    100% { top: calc(100% - 130px); }
+}
+
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    
+    <!-- Экран 1: Старт и Легенда -->
+    <div id="screen-intro" class="screen">
+        <h1>Сортировщик зомби</h1>
+        <p>Твоя задача – отсортировать здоровых людей и зараженных. Видишь выжившего? Нажимай кнопку "В убежище". А зомби — "В карантин". Набери <strong>250 очков</strong> для победы!</p>
+        
+        <div class="legend-grid">
+            <div class="legend-item">
+                <div class="legend-visual type-survivor"></div>
+                <strong>Выживший</strong>
+                   </div>
+            <div class="legend-item">
+                <div class="legend-visual type-classic"></div>
+                <strong>Обычный Зомби</strong>
+                  </div>
+            <div class="legend-item">
+                <div class="legend-visual type-chemical"></div>
+                <strong>Химический</strong>
+                   </div>
+            <div class="legend-item">
+                <div class="legend-visual type-radiation"></div>
+                <strong>Радиационный</strong>
+                          </div>
+            <div class="legend-item">
+                <div class="legend-visual type-fire"></div>
+                <strong>Огненный</strong>
+                         </div>
+        </div>
+
+        <p style="color: #ffbc00; font-size: 1vw;">Внимание: Пропустишь хоть одного зомби в убежище — конец игры!</p>
+        <button class="btn" onclick="startGame()">Начать миссию</button>
+    </div>
+
+    <!-- Экран 2: Игра -->
+    <div id="screen-game" class="screen" style="display: none;">
+        <div id="hud">
+            <div id="score-display">Очки: 0</div>
+            <div id="goal-display">Цель: 250</div>
+        </div>
+
+        <div id="gate-zone"></div>
+        <div id="path-area"></div>
+
+        <div id="controls">
+            <button id="btn-shelter" class="btn action-btn" onclick="handleChoice('shelter')">В Убежище</button>
+            <button id="btn-quarantine" class="btn action-btn" onclick="handleChoice('quarantine')">В Карантин</button>
+        </div>
+    </div>
+
+    <!-- Экран 3: Финал (Победа/Поражение) -->
+    <div id="screen-outro" class="screen" style="display: none;">
+        <h1 id="outro-title"></h1>
+        <p id="outro-text"></p>
+        <button class="btn" onclick="resetGame()">Играть снова</button>
+    </div>
+
+</div>
+
+<script>
+    // Настройки и данные
+    const WIN_SCORE = 250;
+    let score = 0;
+    let gameActive = false;
+    let currentEntity = null;
+    let currentElement = null;
+    let moveTimeout = null;
+    let isProcessing = false;
+
+    // База типов существ
+    const entityTypes = [
+        { type: 'survivor', isZombie: false, class: 'type-survivor', time: 3500 },
+        { type: 'classic', isZombie: true, class: 'type-classic', time: 4000 },
+        { type: 'chemical', isZombie: true, class: 'type-chemical', time: 3500 },
+        { type: 'radiation', isZombie: true, class: 'type-radiation', time: 3200 },
+        { type: 'fire', isZombie: true, class: 'type-fire', time: 2500 } // Огненный двигается быстрее
+    ];
+
+    // Элементы DOM
+    const screenIntro = document.getElementById('screen-intro');
+    const screenGame = document.getElementById('screen-game');
+    const screenOutro = document.getElementById('screen-outro');
+    const pathArea = document.getElementById('path-area');
+    const scoreDisplay = document.getElementById('score-display');
+    const outroTitle = document.getElementById('outro-title');
+    const outroText = document.getElementById('outro-text');
+    const gameContainer = document.getElementById('game-container');
+
+    function startGame() {
+        score = 0;
+        updateScoreDisplay();
+        screenIntro.style.display = 'none';
+        screenOutro.style.display = 'none';
+        screenGame.style.display = 'block';
+        gameActive = true;
+        isProcessing = false;
+        pathArea.innerHTML = '';
+        setTimeout(spawnEntity, 500);
+    }
+
+function spawnEntity() {
+        if (!gameActive) return;
+        isProcessing = false;
+
+        const rand = Math.random();
+        if (rand < 0.35) {
+            currentEntity = entityTypes[0];
+        } else {
+            const zombieIndex = Math.floor(Math.random() * 4) + 1;
+            currentEntity = entityTypes[zombieIndex];
+        }
+
+        currentElement = document.createElement('div');
+        currentElement.classList.add('entity', currentEntity.class, 'walking');
+        currentElement.style.animationDuration = currentEntity.time + 'ms';
+        
+        pathArea.appendChild(currentElement);
+
+        moveTimeout = setTimeout(() => {
+            if (!isProcessing) handleChoice('shelter', true);
+        }, currentEntity.time);
+
+        // === НОВАЯ ЛОГИКА ПЕРЕТАСКИВАНИЯ (Drag & Drop) ===
+        let isDragging = false;
+        let startX, startY;
+
+        currentElement.addEventListener('pointerdown', function(e) {
+            if (isProcessing) return;
+            isDragging = true;
+            
+            // Ставим анимацию на паузу
+            currentElement.style.animationPlayState = 'paused';
+            
+            // Запоминаем текущие координаты, чтобы фигурка не прыгнула к мышке
+            const rect = currentElement.getBoundingClientRect();
+            const containerRect = gameContainer.getBoundingClientRect();
+            
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+            
+            // Переводим координаты в пиксели для свободного перемещения
+            currentElement.style.left = (rect.left - containerRect.left) + 'px';
+            currentElement.style.top = (rect.top - containerRect.top) + 'px';
+
+            document.addEventListener('pointermove', onDragMove);
+            document.addEventListener('pointerup', onDragEnd);
+        });
+
+        function onDragMove(e) {
+            if (!isDragging) return;
+            const containerRect = gameContainer.getBoundingClientRect();
+            
+            // Двигаем фигурку за курсором/пальцем
+            currentElement.style.left = (e.clientX - containerRect.left - startX) + 'px';
+            currentElement.style.top = (e.clientY - containerRect.top - startY) + 'px';
+        }
+
+        function onDragEnd(e) {
+            if (!isDragging) return;
+            isDragging = false;
+            
+            document.removeEventListener('pointermove', onDragMove);
+            document.removeEventListener('pointerup', onDragEnd);
+
+            // Прячем фигурку на долю секунды, чтобы узнать, что находится ПОД ней
+            currentElement.style.display = 'none';
+            const elementBelow = document.elementFromPoint(e.clientX, e.clientY);
+            currentElement.style.display = 'block';
+
+            // Проверяем, бросили ли мы фигурку на одну из кнопок
+            if (elementBelow && (elementBelow.id === 'btn-shelter' || elementBelow.closest('#btn-shelter'))) {
+                handleChoice('shelter');
+            } else if (elementBelow && (elementBelow.id === 'btn-quarantine' || elementBelow.closest('#btn-quarantine'))) {
+                handleChoice('quarantine');
+            } else {
+                // Если бросили мимо кнопок - возвращаем на центр и продолжаем падение
+                currentElement.style.left = 'calc(50% - 30px)';
+                currentElement.style.top = ''; // Сбрасываем ручной top, чтобы работала CSS-анимация
+                currentElement.style.animationPlayState = 'running';
+            }
+        }
+        // ===============================================
+    }
+    function handleChoice(choice, isTimeout = false) {
+        if (!gameActive || isProcessing || !currentElement) return;
+        isProcessing = true;
+        clearTimeout(moveTimeout);
+
+        const isZombie = currentEntity.isZombie;
+        let pointsToChange = 0;
+        let color = '#fff';
+
+        if (choice === 'shelter') {
+            if (isZombie) {
+                // Зомби попал в убежище - Мгновенный проигрыш
+                endGame(false);
+                return;
+            } else {
+                // Правильно: Выживший в убежище
+                pointsToChange = 10;
+                color = '#4caf50';
+            }
+        } else if (choice === 'quarantine') {
+            if (isZombie) {
+                // Правильно: Зомби в карантин
+                pointsToChange = 20;
+                color = '#4caf50';
+            } else {
+                // Ошибка: Выживший в карантин
+                pointsToChange = -5;
+                color = '#ef5350';
+            }
+        }
+
+        // Показываем плавающие очки
+        showFloatingText((pointsToChange > 0 ? '+' : '') + pointsToChange, color);
+        
+        // Обновляем счет
+        score += pointsToChange;
+        updateScoreDisplay();
+
+        // Анимация исчезновения текущей фигурки
+        currentElement.style.animationPlayState = 'paused';
+        currentElement.style.opacity = '0';
+        currentElement.style.transform = choice === 'shelter' ? 'translateX(-200%) scale(0.5)' : 'translateX(100%) scale(0.5)';
+        currentElement.style.transition = 'all 0.3s ease';
+
+        setTimeout(() => {
+            if (currentElement) currentElement.remove();
+            
+            // Проверка на победу
+            if (score >= WIN_SCORE) {
+                endGame(true);
+            } else {
+                spawnEntity(); // Спавним следующего
+            }
+        }, 300);
+    }
+
+    function showFloatingText(text, color) {
+        if (!currentElement) return;
+        const rect = currentElement.getBoundingClientRect();
+        const containerRect = gameContainer.getBoundingClientRect();
+        
+        const floatEl = document.createElement('div');
+        floatEl.className = 'floating-text';
+        floatEl.innerText = text;
+        floatEl.style.color = color;
+        
+        // Позиционируем над моделькой
+        floatEl.style.left = (rect.left - containerRect.left + 15) + 'px';
+        floatEl.style.top = (rect.top - containerRect.top) + 'px';
+        
+        gameContainer.appendChild(floatEl);
+        setTimeout(() => floatEl.remove(), 1000);
+    }
+
+    function updateScoreDisplay() {
+        scoreDisplay.innerText = `Очки: ${score}`;
+    }
+
+    function endGame(isWin) {
+        gameActive = false;
+        clearTimeout(moveTimeout);
+        screenGame.style.display = 'none';
+        screenOutro.style.display = 'flex';
+
+        if (isWin) {
+            outroTitle.innerText = "Миссия Выполнена!";
+            outroTitle.style.color = "#4caf50";
+            outroText.innerText = `Ты победил и спасся! Твой результат: ${score} очков!`;
+        } else {
+            outroTitle.innerText = "Миссия Провалена!";
+            outroTitle.style.color = "#ef5350";
+            outroText.innerText = "Один зараженный в убежище – это конец для всех. Ты проиграл.";
+        }
+    }
+
+    function resetGame() {
+        screenOutro.style.display = 'none';
+        screenIntro.style.display = 'flex';
+    }
+
+    // Обработка клавиш (Стрелка Влево = Убежище, Стрелка Вправо = Карантин)
+    document.addEventListener('keydown', (e) => {
+        if (!gameActive) return;
+        if (e.key === 'ArrowLeft') {
+            document.getElementById('btn-shelter').classList.add('active');
+            handleChoice('shelter');
+            setTimeout(() => document.getElementById('btn-shelter').classList.remove('active'), 100);
+        } else if (e.key === 'ArrowRight') {
+            document.getElementById('btn-quarantine').classList.add('active');
+            handleChoice('quarantine');
+            setTimeout(() => document.getElementById('btn-quarantine').classList.remove('active'), 100);
+        }
+    });
+
+</script>
+</body>
+</html>\
